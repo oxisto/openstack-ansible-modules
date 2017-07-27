@@ -108,7 +108,8 @@ def get_service(keystone, name):
 
 def get_endpoint(keystone, name, interface, region, ignore_other_regions):
     """ Retrieve a service endpoint by name and interface """
-    endpoints = keystone.endpoints.list(service=name, interface=interface)
+    service = get_service(keystone, name)
+    endpoints = keystone.endpoints.list(service=service.id, interface=interface)
 
     # If this is a multi-region cloud only look at this region's endpoints
     if ignore_other_regions:
