@@ -156,7 +156,7 @@ def ensure_present(keystone, name, service_type, description, interface, url, re
     if service is not None:
         identical = service.name == name and \
                     service.type == service_type and \
-                    service.description == description
+                    getattr(service, 'description', None) == description
         if not identical:
             changed = True
             ensure_endpoint_absent(keystone, name, interface, check_mode, region,
@@ -169,7 +169,7 @@ def ensure_present(keystone, name, service_type, description, interface, url, re
     if service is None:
         if not check_mode:
             service = keystone.services.create(
-                name=name,
+                name,
                 service_type=service_type,
                 description=description,
             )
@@ -179,10 +179,9 @@ def ensure_present(keystone, name, service_type, description, interface, url, re
     if endpoint is None:
         if not check_mode:
             endpoint = keystone.endpoints.create(
+                service.id, url,
                 region=region,
-                service_id=service.id,
                 interface=interface,
-                url=url
             )
         changed = True
 
@@ -205,7 +204,7 @@ def ensure_service_absent(keystone, name, check_mode):
             return False
 
         if not check_mode:
-            keystone.services.delete(service.id)
+            keystone.services.delete(service=service.id)
         return True
     except KeyError:
         # Service doesn't exist, so we're done.
