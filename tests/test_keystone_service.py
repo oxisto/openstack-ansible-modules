@@ -14,9 +14,8 @@ def setup():
     keystone.services.list = mock.Mock(return_value=[service])
     endpoint = mock.Mock(id="600759628a214eb7b3acde39b1e85180",
                          service_id="b6a7ff03f2574cd9b5c7c61186e0d781",
-                         publicurl="http://192.168.206.130:5000/v2.0",
-                         internalurl="http://192.168.206.130:5000/v2.0",
-                         adminurl="http://192.168.206.130:35357/v2.0",
+                         interface="admin",
+                         url="http://192.168.206.130:35357/v2.0",
                          region="RegionOne")
     keystone.endpoints.list = mock.Mock(return_value=[endpoint])
     return keystone
@@ -43,21 +42,18 @@ def setup_multi_region():
     endpoints = [
         mock.Mock(id="600759628a214eb7b3acde39b1e85180",
                   service_id="b6a7ff03f2574cd9b5c7c61186e0d781",
-                  publicurl="http://192.168.206.130:5000/v2.0",
-                  internalurl="http://192.168.206.130:5000/v2.0",
-                  adminurl="http://192.168.206.130:35357/v2.0",
+                  interface="admin",
+                  url="http://192.168.206.130:35357/v2.0",
                   region="RegionOne"),
         mock.Mock(id="6bdf5ed5e0a54df8b9a049bd263bba0c",
                   service_id="b6a7ff03f2574cd9b5c7c61186e0d781",
-                  publicurl="http://192.168.206.130:5000/v2.0",
-                  internalurl="http://192.168.206.130:5000/v2.0",
-                  adminurl="http://192.168.206.130:35357/v2.0",
+                  interface="admin",
+                  url="http://192.168.206.130:5000/v2.0",
                   region="RegionTwo"),
         mock.Mock(id="cf65cfdc5b5a4fa39bfbe3d7e27f8526",
                   service_id="a7ebed35051147d4abbe2ee049eeb346",
-                  publicurl="http://192.168.206.130:8774/v2/%(tenant_id)s",
-                  internalurl="http://192.168.206.130:8774/v2/%(tenant_id)s",
-                  adminurl="http://192.168.206.130:8774/v2/%(tenant_id)s",
+                  interface="admin",
+                  url="http://192.168.206.130:8774/v2/%(tenant_id)s",
                   region="RegionTwo")
     ]
 
@@ -86,21 +82,20 @@ def test_dispatch_service_present(mock_ensure_present,
     service_type = "identity"
     description = "Keystone Identity Service"
     state = "present"
-    public_url = "http://192.168.206.130:5000/v2.0"
-    internal_url = "http://192.168.206.130:5000/v2.0"
-    admin_url = "http://192.168.206.130:35357/v2.0"
+    interface = "admin"
+    url = "http://192.168.206.130:35357/v2.0"
     region = "RegionOne"
     ignore_other_regions = False
     check_mode = False
 
     # Code under test
     keystone_service.dispatch(keystone, name, service_type, description,
-                              public_url, internal_url, admin_url, region,
+                              interface, url, region,
                               ignore_other_regions, state, check_mode)
 
     expected_calls = [mock.call.ensure_present(keystone, name, service_type,
-                                               description, public_url,
-                                               internal_url, admin_url, region,
+                                               description, interface,
+                                               url, region,
                                                ignore_other_regions,
                                                check_mode)]
 
@@ -130,18 +125,17 @@ def test_dispatch_service_absent(mock_ensure_present,
     region = "RegionOne"
     ignore_other_regions = False
     state = "absent"
-    public_url = "http://192.168.206.130:5000/v2.0"
-    internal_url = "http://192.168.206.130:5000/v2.0"
-    admin_url = "http://192.168.206.130:35357/v2.0"
+    interface = "admin"
+    url = "http://192.168.206.130:35357/v2.0"
     check_mode = False
 
     # Code under test
     keystone_service.dispatch(keystone, name, service_type, description,
-                              public_url, internal_url, admin_url, region,
+                              interface, url, region,
                               ignore_other_regions, state, check_mode)
 
     expected_calls = [
-        mock.call.ensure_endpoint_absent(keystone, name, check_mode, region,
+        mock.call.ensure_endpoint_absent(keystone, name, interface, check_mode, region,
                                          ignore_other_regions),
         mock.call.ensure_service_absent(keystone, name, check_mode)
     ]
@@ -158,15 +152,14 @@ def test_ensure_present_when_present():
     description = "Keystone Identity Service"
     region = "RegionOne"
     ignore_other_regions = False
-    public_url = "http://192.168.206.130:5000/v2.0"
-    internal_url = "http://192.168.206.130:5000/v2.0"
-    admin_url = "http://192.168.206.130:35357/v2.0"
+    interface = "admin"
+    url = "http://192.168.206.130:35357/v2.0"
     check_mode = False
 
     # Code under test
     (changed, service_id, endpoint_id) = keystone_service.ensure_present(
-            keystone, name, service_type, description, public_url,
-            internal_url, admin_url, region, ignore_other_regions, check_mode)
+            keystone, name, service_type, description, interface, url,
+            region, ignore_other_regions, check_mode)
 
     # Assertions
     assert not changed
@@ -183,15 +176,14 @@ def test_ensure_present_when_present_multi_region():
     description = "Keystone Identity Service"
     region = "RegionOne"
     ignore_other_regions = True
-    public_url = "http://192.168.206.130:5000/v2.0"
-    internal_url = "http://192.168.206.130:5000/v2.0"
-    admin_url = "http://192.168.206.130:35357/v2.0"
+    interface = "admin"
+    url = "http://192.168.206.130:35357/v2.0"
     check_mode = False
 
     # Code under test
     (changed, service_id, endpoint_id) = keystone_service.ensure_present(
-            keystone, name, service_type, description, public_url,
-            internal_url, admin_url, region, ignore_other_regions, check_mode)
+            keystone, name, service_type, description, interface,
+            url, region, ignore_other_regions, check_mode)
 
     # Assertions
     assert not changed
@@ -208,15 +200,14 @@ def test_ensure_present_when_present_check():
     description = "Keystone Identity Service"
     region = "RegionOne"
     ignore_other_regions = False
-    public_url = "http://192.168.206.130:5000/v2.0"
-    internal_url = "http://192.168.206.130:5000/v2.0"
-    admin_url = "http://192.168.206.130:35357/v2.0"
+    interface = "admin"
+    url = "http://192.168.206.130:35357/v2.0"
     check_mode = True
 
     # Code under test
     (changed, service_id, endpoint_id) = keystone_service.ensure_present(
-            keystone, name, service_type, description, public_url,
-            internal_url, admin_url, region, ignore_other_regions, check_mode)
+            keystone, name, service_type, description, interface,
+            url, region, ignore_other_regions, check_mode)
 
     # Assertions
     assert not changed
@@ -232,9 +223,8 @@ def test_ensure_present_when_absent():
     # Mock out the service and endpoint creates
     endpoint = mock.Mock(
             id="622386d836b14fd986d9cec7504d208a",
-            publicurl="http://192.168.206.130:8774/v2/%(tenant_id)s",
-            internalurl="http://192.168.206.130:8774/v2/%(tenant_id)s",
-            adminurl="http://192.168.206.130:8774/v2/%(tenant_id)s",
+            interface="admin",
+            url="http://192.168.206.130:8774/v2/%(tenant_id)s",
             region="RegionOne")
     keystone.endpoints.create = mock.Mock(return_value=endpoint)
     service = mock.Mock(id="a7ebed35051147d4abbe2ee049eeb346")
@@ -243,17 +233,16 @@ def test_ensure_present_when_absent():
     name = "nova"
     service_type = "compute"
     description = "Compute Service"
-    public_url = "http://192.168.206.130:8774/v2/%(tenant_id)s"
-    internal_url = "http://192.168.206.130:8774/v2/%(tenant_id)s"
-    admin_url = "http://192.168.206.130:8774/v2/%(tenant_id)s"
+    interface = "admin"
+    url = "http://192.168.206.130:8774/v2/%(tenant_id)s"
     region = "RegionOne"
     ignore_other_regions = False
     check_mode = False
 
     # Code under test
     (changed, service_id, endpoint_id) = keystone_service.ensure_present(
-            keystone, name, service_type, description, public_url,
-            internal_url, admin_url, region, ignore_other_regions, check_mode)
+            keystone, name, service_type, description, interface,
+            url, region, ignore_other_regions, check_mode)
 
     # Assertions
     assert changed
@@ -264,9 +253,8 @@ def test_ensure_present_when_absent():
     assert_equal(endpoint_id, "622386d836b14fd986d9cec7504d208a")
     keystone.endpoints.create.assert_called_with(
         service_id="a7ebed35051147d4abbe2ee049eeb346",
-        publicurl="http://192.168.206.130:8774/v2/%(tenant_id)s",
-        internalurl="http://192.168.206.130:8774/v2/%(tenant_id)s",
-        adminurl="http://192.168.206.130:8774/v2/%(tenant_id)s",
+        interface="admin",
+        url="http://192.168.206.130:8774/v2/%(tenant_id)s",
         region="RegionOne")
 
 
@@ -278,9 +266,8 @@ def test_ensure_present_when_absent_multi_region():
     # Mock out the service and endpoint creates
     endpoint = mock.Mock(
             id="622386d836b14fd986d9cec7504d208a",
-            publicurl="http://192.168.206.130:8774/v2/%(tenant_id)s",
-            internalurl="http://192.168.206.130:8774/v2/%(tenant_id)s",
-            adminurl="http://192.168.206.130:8774/v2/%(tenant_id)s",
+            interface="admin",
+            url="http://192.168.206.130:8774/v2/%(tenant_id)s",
             region="RegionOne")
     keystone.endpoints.create = mock.Mock(return_value=endpoint)
     service = mock.Mock(id="a7ebed35051147d4abbe2ee049eeb346")
@@ -290,17 +277,16 @@ def test_ensure_present_when_absent_multi_region():
     name = "nova"
     service_type = "compute"
     description = "Compute Service"
-    public_url = "http://192.168.206.130:8774/v2/%(tenant_id)s"
-    internal_url = "http://192.168.206.130:8774/v2/%(tenant_id)s"
-    admin_url = "http://192.168.206.130:8774/v2/%(tenant_id)s"
+    interface = "admin"
+    url = "http://192.168.206.130:8774/v2/%(tenant_id)s"
     region = "RegionOne"
     ignore_other_regions = True
     check_mode = False
 
     # Code under test
     (changed, service_id, endpoint_id) = keystone_service.ensure_present(
-            keystone, name, service_type, description, public_url,
-            internal_url, admin_url, region, ignore_other_regions, check_mode)
+            keystone, name, service_type, description, interface,
+            url, region, ignore_other_regions, check_mode)
 
     # Assertions
     assert changed
@@ -309,9 +295,8 @@ def test_ensure_present_when_absent_multi_region():
     assert_equal(endpoint_id, "622386d836b14fd986d9cec7504d208a")
     keystone.endpoints.create.assert_called_with(
         service_id="a7ebed35051147d4abbe2ee049eeb346",
-        publicurl="http://192.168.206.130:8774/v2/%(tenant_id)s",
-        internalurl="http://192.168.206.130:8774/v2/%(tenant_id)s",
-        adminurl="http://192.168.206.130:8774/v2/%(tenant_id)s",
+        interface="admin",
+        url="http://192.168.206.130:8774/v2/%(tenant_id)s",
         region="RegionOne")
     assert not keystone.endpoints.delete.called
 
@@ -324,9 +309,8 @@ def test_ensure_present_when_absent_check():
     # Mock out the service and endpoint creates
     endpoint = mock.Mock(
             id="622386d836b14fd986d9cec7504d208a",
-            publicurl="http://192.168.206.130:8774/v2/%(tenant_id)s",
-            internalurl="http://192.168.206.130:8774/v2/%(tenant_id)s",
-            adminurl="http://192.168.206.130:8774/v2/%(tenant_id)s",
+            interface="admin",
+            url="http://192.168.206.130:8774/v2/%(tenant_id)s",
             region="RegionOne")
     keystone.endpoints.create = mock.Mock(return_value=endpoint)
     service = mock.Mock(id="a7ebed35051147d4abbe2ee049eeb346")
@@ -335,17 +319,16 @@ def test_ensure_present_when_absent_check():
     name = "nova"
     service_type = "compute"
     description = "Compute Service"
-    public_url = "http://192.168.206.130:8774/v2/%(tenant_id)s"
-    internal_url = "http://192.168.206.130:8774/v2/%(tenant_id)s"
-    admin_url = "http://192.168.206.130:8774/v2/%(tenant_id)s"
+    interface = "admin"
+    url = "http://192.168.206.130:8774/v2/%(tenant_id)s"
     region = "RegionOne"
     ignore_other_regions = False
     check_mode = True
 
     # Code under test
     (changed, service_id, endpoint_id) = keystone_service.ensure_present(
-            keystone, name, service_type, description, public_url,
-            internal_url, admin_url, region, ignore_other_regions, check_mode)
+            keystone, name, service_type, description, interface,
+            url, region, ignore_other_regions, check_mode)
 
     # Assertions
     assert changed

@@ -18,30 +18,14 @@ options:
     description:
         - description of service (e.g., Identity Service)
     required: yes
-  public_url:
+  interface:
     description:
-        - public url of service.
-        - 'Alias: I(url)'
-        - 'Alias: I(publicurl)'
+        - interface of service (admin, public, internal)
     required: yes
-  internal_url:
+  url:
     description:
-        - internal url of service.
-        - 'Alias: I(internalurl)'
-    required: no
-    default: value of public_url
-  admin_url:
-    description:
-        - admin url of service.
-        - 'Alias: I(adminurl)'
-    required: no
-    default: value of public_url
-  insecure:
-    description:
-        - allow use of self-signed SSL certificates
-    required: no
-    choices: [ "yes", "no" ]
-    default: no
+        - url of service.
+    required: yes
   region:
     description:
         - region of service
@@ -71,20 +55,22 @@ keystone_service: >
     name=keystone
     type=identity
     description="Keystone Identity Service"
-    publicurl=http://192.168.206.130:5000/v2.0
-    internalurl=http://192.168.206.130:5000/v2.0
-    adminurl=http://192.168.206.130:35357/v2.0
+    interface=admin
+    url=http://192.168.206.130:35357/v2.0
 
 keystone_service: >
     name=glance
     type=image
     description="Glance Identity Service"
+    interface=internal
     url=http://192.168.206.130:9292
 
 '''
 
 try:
-    from keystoneclient.v2_0 import client
+    from keystoneauth1.identity import v3
+    from keystoneauth1 import session
+    from keystoneclient.v3 import client
 except ImportError:
     keystoneclient_found = False
 else:
@@ -98,11 +84,14 @@ def authenticate(endpoint, token, login_user, login_password, tenant_name,
     """Return a keystone client object"""
 
     if token:
-        return client.Client(endpoint=endpoint, token=token, insecure=insecure)
+        auth = v3.Token(auth_url=endpoint, token=token)
     else:
-        return client.Client(auth_url=endpoint, username=login_user,
-                             password=login_password, tenant_name=tenant_name,
-                             insecure=insecure)
+        auth = v3.Password(auth_url=endpoint, username=login_user,
+                           password=login_password, project_name=tenant_name,
+                           user_domain_id="default", project_domain_id="default")
+
+    sess = session.Session(auth=auth)
+    return client.Client(session=sess)
 
 
 def get_service(keystone, name):
@@ -117,11 +106,9 @@ def get_service(keystone, name):
         return services[0]
 
 
-def get_endpoint(keystone, name, region, ignore_other_regions):
-    """ Retrieve a service endpoint by name """
-    service = get_service(keystone, name)
-    endpoints = [x for x in keystone.endpoints.list()
-                   if x.service_id == service.id]
+def get_endpoint(keystone, name, interface, region, ignore_other_regions):
+    """ Retrieve a service endpoint by name and interface """
+    endpoints = keystone.endpoints.list(service=name, interface=interface)
 
     # If this is a multi-region cloud only look at this region's endpoints
     if ignore_other_regions:
@@ -136,8 +123,7 @@ def get_endpoint(keystone, name, region, ignore_other_regions):
         return endpoints[0]
 
 
-def ensure_present(keystone, name, service_type, description, public_url,
-                   internal_url, admin_url, region, ignore_other_regions,
+def ensure_present(keystone, name, service_type, description, interface, url, region, ignore_other_regions,
                    check_mode):
     """ Ensure the service and its endpoint are present and have the right values.
 
@@ -150,20 +136,19 @@ def ensure_present(keystone, name, service_type, description, public_url,
     endpoint = None
     try: service = get_service(keystone, name)
     except KeyError: pass
-    try: endpoint = get_endpoint(keystone, name, region, ignore_other_regions)
+    try: endpoint = get_endpoint(keystone, name, interface, region, ignore_other_regions)
     except KeyError: pass
 
     changed = False
 
     # Delete endpoint if it exists and doesn't match.
     if endpoint is not None:
-        identical = endpoint.publicurl == public_url and \
-                    endpoint.adminurl == admin_url and \
-                    endpoint.internalurl == internal_url and \
+        identical = endpoint.interface == interface and \
+                    endpoint.url == url and \
                     endpoint.region == region
         if not identical:
             changed = True
-            ensure_endpoint_absent(keystone, name, check_mode, region,
+            ensure_endpoint_absent(keystone, name, interface, check_mode, region,
                                    ignore_other_regions)
             endpoint = None
 
@@ -174,7 +159,7 @@ def ensure_present(keystone, name, service_type, description, public_url,
                     service.description == description
         if not identical:
             changed = True
-            ensure_endpoint_absent(keystone, name, check_mode, region,
+            ensure_endpoint_absent(keystone, name, interface, check_mode, region,
                                    ignore_other_regions)
             endpoint = None
             ensure_service_absent(keystone, name, check_mode)
@@ -196,9 +181,8 @@ def ensure_present(keystone, name, service_type, description, public_url,
             endpoint = keystone.endpoints.create(
                 region=region,
                 service_id=service.id,
-                publicurl=public_url,
-                adminurl=admin_url,
-                internalurl=internal_url,
+                interface=interface,
+                url=url
             )
         changed = True
 
@@ -228,11 +212,11 @@ def ensure_service_absent(keystone, name, check_mode):
         return False
 
 
-def ensure_endpoint_absent(keystone, name, check_mode, region,
+def ensure_endpoint_absent(keystone, name, interface, check_mode, region,
                            ignore_other_regions):
     """ Ensure the service endpoint """
     try:
-        endpoint = get_endpoint(keystone, name, region, ignore_other_regions)
+        endpoint = get_endpoint(keystone, name, interface, region, ignore_other_regions)
         if not check_mode:
             keystone.endpoints.delete(endpoint.id)
         return True
@@ -241,8 +225,8 @@ def ensure_endpoint_absent(keystone, name, check_mode, region,
         return False
 
 
-def dispatch(keystone, name, service_type, description, public_url,
-             internal_url, admin_url, region, ignore_other_regions, state,
+def dispatch(keystone, name, service_type, description, interface,
+             url, region, ignore_other_regions, state,
              check_mode):
 
     if state == 'present':
@@ -251,16 +235,15 @@ def dispatch(keystone, name, service_type, description, public_url,
             name,
             service_type,
             description,
-            public_url,
-            internal_url,
-            admin_url,
+            interface,
+            url,
             region,
             ignore_other_regions,
             check_mode,
         )
         return dict(changed=changed, service_id=service_id, endpoint_id=endpoint_id)
     elif state == 'absent':
-        endpoint_changed = ensure_endpoint_absent(keystone, name, check_mode,
+        endpoint_changed = ensure_endpoint_absent(keystone, name, interface, check_mode,
                                                   region, ignore_other_regions)
         service_changed = ensure_service_absent(keystone, name, check_mode)
         return dict(changed=service_changed or endpoint_changed)
@@ -276,9 +259,8 @@ def main():
             name=dict(required=True),
             type=dict(required=True),
             description=dict(required=False),
-            public_url=dict(required=True, aliases=['url', 'publicurl']),
-            internal_url=dict(required=False, aliases=['internalurl']),
-            admin_url=dict(required=False, aliases=['adminurl']),
+            interface=dict(required=True),
+            url=dict(required=True),
             region=dict(required=False, default='RegionOne'),
             ignore_other_regions=dict(required=False, default=False, type='bool'),
             state=dict(default='present', choices=['present', 'absent']),
@@ -307,13 +289,8 @@ def main():
     name = module.params['name']
     service_type = module.params['type']
     description = module.params['description']
-    public_url = module.params['public_url']
-    internal_url = module.params['internal_url']
-    if internal_url is None:
-        internal_url = public_url
-    admin_url = module.params['admin_url']
-    if admin_url is None:
-        admin_url = public_url
+    interface = module.params['interface']
+    url = module.params['url']
     region = module.params['region']
     ignore_other_regions = module.boolean(module.params['ignore_other_regions'])
     state = module.params['state']
@@ -324,7 +301,7 @@ def main():
 
     try:
         d = dispatch(keystone, name, service_type, description,
-                     public_url, internal_url, admin_url, region,
+                     interface, url, region,
                      ignore_other_regions, state, check_mode)
     except Exception:
         if check_mode:
